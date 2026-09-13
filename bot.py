@@ -5,12 +5,15 @@ ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXN
 
 async def main():
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        # Brauzerni xotirani tejash parametrlari bilan ishga tushiramiz
+        browser = await p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+        )
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
         )
         
-        # Brauzerga hisob tokeningizni yuklaymiz
         await context.add_cookies([
             {"name": "access_token", "value": ACCESS_TOKEN, "domain": ".mutolaa.com", "path": "/"},
             {"name": "mutolaa_device_id", "value": "55121568-00cc-40bd-924f-2339b8c72254", "domain": ".mutolaa.com", "path": "/"}
@@ -19,16 +22,19 @@ async def main():
         page = await context.new_page()
         print("Kitob sahifasi ochilmoqda...")
         await page.goto("https://mutolaa.com/uz/reader/ulug-bek-xazinasi", wait_until="networkidle")
-        
-        print("Sahifa faol ushlab turilmoqda (WebSocket va Ping ishlayapti)...")
-        # 5 soat davomida har 30 soniyada sahifani biroz qimirlatib turadi
-        for _ in range(600):
-            await page.mouse.wheel(0, 100)
-            await asyncio.sleep(15)
-            await page.mouse.wheel(0, -100)
-            await asyncio.sleep(15)
+        print("Sahifa ochildi. 24/7 faollik boshlandi...")
 
-        await browser.close()
+        # Cheksiz sikl (24/7 to'xtovsiz qimirlatib turadi)
+        while True:
+            try:
+                await page.mouse.wheel(0, 150)
+                await asyncio.sleep(20)
+                await page.mouse.wheel(0, -150)
+                await asyncio.sleep(20)
+            except Exception as e:
+                print(f"Xatolik yuz berdi: {e}")
+                await page.reload(wait_until="networkidle")
+                await asyncio.sleep(10)
 
 if __name__ == "__main__":
     asyncio.run(main())
