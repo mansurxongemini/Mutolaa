@@ -1,0 +1,23 @@
+name: Mutolaa 24/7 Reader
+
+on:
+  schedule:
+    # Har 5 soatda o'z-o'zidan qayta ishga tushadi
+    - cron: '0 */5 * * *'
+  workflow_dispatch: # Qo'lda yoqish tugmasi
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python o'rnatish
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Playwright ornatish
+        run: |
+          pip install playwright
+          playwright install chromium
+      - name: Skriptni ishga tushirish
+        run: python bot.py
