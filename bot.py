@@ -2,7 +2,9 @@ import asyncio
 from aiohttp import web
 from playwright.async_api import async_playwright
 
-ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzkxOTE3MzU5LCJpYXQiOjE3ODkzMjUzNTksImp0aSI6IjBiZTc0MTQ1MTMxMTQwMTdhZGEwNDM1NzNlMjJmZDViIiwidXNlcl9pZCI6IjI2ODY2MTIiLCJkZXZpY2VfaWQiOiI1NTEyMTU2OC0wMGNjLTQwYmQtOTI0Zi0yMzM5YjhjNzIyNTQifQ.-9-1-9AknpXaa6jOs0wKmR-pDZaeaHclcWf8LDYa9Tw"
+ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzkyMDI5OTAzLCJpYXQiOjE3ODk0Mzc5MDMsImp0aSI6ImQxOGQ4NGRmNGZlMjRmMmI4YjA1MjQxYzY3NjgxYmNiIiwidXNlcl9pZCI6IjI2ODY2MTIiLCJkZXZpY2VfaWQiOiI1ZDc3Yjk3NS1kN2FhLTRhMTgtOWRjZi03M2FkYWZjZjg0ZTgifQ.zgiagZRTyYLvI2elcKjLq8qVZKQrUP--N4sDygPiyFw"
+DEVICE_ID = "5d77b975-d7aa-4a18-9dcf-73adafcf84e8"
+BOOK_URL = "https://mutolaa.com/uz/reader/orzular-ortidan-quvib"
 
 async def handle_ping(request):
     return web.Response(text="Bot faol ishlamoqda!")
@@ -17,9 +19,7 @@ async def start_web_server():
     print("Veb-server 10000-portda ishga tushdi.", flush=True)
 
 async def run_single_session():
-    """Har 25 daqiqada brauzerni noldan ochib-yopib xotirani (RAM) tozalaydi"""
     async with async_playwright() as p:
-        # Xotirani tejovchi parametrlar
         browser = await p.chromium.launch(
             headless=True,
             args=[
@@ -34,41 +34,49 @@ async def run_single_session():
         )
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-            timezone_id="Asia/Tashkent"
+            timezone_id="Asia/Tashkent",
+            locale="uz-UZ"
         )
         
         await context.add_cookies([
             {"name": "access_token", "value": ACCESS_TOKEN, "domain": ".mutolaa.com", "path": "/"},
-            {"name": "mutolaa_device_id", "value": "55121568-00cc-40bd-924f-2339b8c72254", "domain": ".mutolaa.com", "path": "/"}
+            {"name": "mutolaa_device_id", "value": DEVICE_ID, "domain": ".mutolaa.com", "path": "/"}
         ])
 
         page = await context.new_page()
         
-        # Keraksiz rasm va shriftlarni yuklamaslik orqali RAM tejash
-        await page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_())
+        # RAM tejash: faqat rasm va video to'xtatiladi, shrift va scriptlar faol qoladi
+        await page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media"] else route.continue_())
 
-        print("Yangi sessiya ochilmoqda...", flush=True)
-        await page.goto("https://mutolaa.com/uz/reader/ulug-bek-xazinasi", wait_until="domcontentloaded")
-        print("Sahifa faol. O'qish boshlandi...", flush=True)
+        print("Sahifa darhol ochilmoqda...", flush=True)
+        await page.goto(BOOK_URL, wait_until="networkidle", timeout=60000)
+        
+        # Sahifa ochilishi bilanoq darhol o'qishni boshlash (harakat triggeri)
+        print("Sahifa ochildi! Darhol o'qish harakatlari boshlandi...", flush=True)
+        await page.mouse.click(200, 300)
+        await page.keyboard.press("PageDown")
+        await page.mouse.wheel(0, 150)
 
-        # 25 daqiqa (50 ta 30 soniyalik sikl) ishlab, keyin brauzerni yopadi
+        # 25 daqiqa davomida uzluksiz o'qish sikli
         for _ in range(50):
-            await page.mouse.wheel(0, 100)
             await asyncio.sleep(15)
-            await page.mouse.wheel(0, -100)
+            await page.keyboard.press("PageDown")
+            await page.mouse.wheel(0, 120)
             await asyncio.sleep(15)
+            await page.keyboard.press("ArrowDown")
+            await page.mouse.wheel(0, -50)
 
-        print("25 daqiqa o'tdi. RAM'ni tozalash uchun brauzer yopilmoqda...", flush=True)
+        print("Sessiya yakunlandi. Xotirani tozalab qayta ulanadi...", flush=True)
         await browser.close()
 
 async def run_mutolaa_bot():
     while True:
         try:
             await run_single_session()
-            await asyncio.sleep(5)  # 5 soniya xotira bo'shashini kutadi
+            await asyncio.sleep(3)
         except Exception as e:
-            print(f"Sessiyada xatolik: {e}, 10 soniyadan so'ng qayta boshlanadi...", flush=True)
-            await asyncio.sleep(10)
+            print(f"Kutilmagan xatolik: {e}, 5 soniyadan so'ng qayta ochiladi...", flush=True)
+            await asyncio.sleep(5)
 
 async def main():
     await start_web_server()
